@@ -1,0 +1,203 @@
+<?php
+session_start();
+require_once "create_notification.php";
+require_once __DIR__ . '/db.php';
+
+if (!isset($_SESSION['user_id'])) {
+    header('Location: login.php?error=' . urlencode('Please login to apply for AICS assistance.'));
+    exit;
+}
+
+$user_id = $_SESSION['user_id'];
+
+// Collect and sanitize input - Beneficiary Information
+$last_name = trim($_POST['last_name'] ?? '');
+$first_name = trim($_POST['first_name'] ?? '');
+$middle_name = trim($_POST['middle_name'] ?? '');
+$name_extension = trim($_POST['name_extension'] ?? '');
+$house_no = trim($_POST['house_no'] ?? '');
+$barangay = trim($_POST['barangay'] ?? '');
+$city_municipality = trim($_POST['city_municipality'] ?? '');
+$province = trim($_POST['province'] ?? '');
+$region = trim($_POST['region'] ?? '');
+$phone = trim($_POST['phone'] ?? '');
+$birthdate = $_POST['birthdate'] ?? '';
+$age = intval($_POST['age'] ?? 0);
+$gender = trim($_POST['gender'] ?? '');
+$civil_status = trim($_POST['civil_status'] ?? '');
+$occupation = trim($_POST['occupation'] ?? '');
+$monthly_salary = floatval($_POST['monthly_salary'] ?? 0);
+
+// Target sector (single value)
+$target_sector = trim($_POST['target_sector'] ?? '');
+
+// Assistance type (required by database)
+$assistance_type = trim($_POST['assistance_type'] ?? '');
+
+// Assistance category (multiple values - new detailed assistance types)
+// Store in financial_assistance_type column to match PDF generation
+$assistance_categories = $_POST['assistance_category'] ?? [];
+$financial_assistance_type = $conn->real_escape_string(implode(', ', $assistance_categories));
+
+// Family composition (JSON)
+$family_members = [];
+$family_names = $_POST['family_name'] ?? [];
+$family_relationships = $_POST['family_relationship'] ?? [];
+$family_ages = $_POST['family_age'] ?? [];
+$family_occupations = $_POST['family_occupation'] ?? [];
+$family_incomes = $_POST['family_income'] ?? [];
+
+for ($i = 0; $i < count($family_names); $i++) {
+    if (!empty($family_names[$i])) {
+        $family_members[] = [
+            'name' => $family_names[$i],
+            'relationship' => $family_relationships[$i] ?? '',
+            'age' => intval($family_ages[$i] ?? 0),
+            'occupation' => $family_occupations[$i] ?? '',
+            'income' => floatval($family_incomes[$i] ?? 0)
+        ];
+    }
+}
+$family_composition = json_encode($family_members);
+
+// Description
+$description_of_need = trim($_POST['description'] ?? '');
+
+// Representative Information
+$rep_last_name = trim($_POST['rep_last_name'] ?? '');
+$rep_first_name = trim($_POST['rep_first_name'] ?? '');
+$rep_middle_name = trim($_POST['rep_middle_name'] ?? '');
+$rep_extension = trim($_POST['rep_extension'] ?? '');
+$rep_house_no = trim($_POST['rep_house_no'] ?? '');
+$rep_barangay = trim($_POST['rep_barangay'] ?? '');
+$rep_city = trim($_POST['rep_city'] ?? '');
+$rep_province = trim($_POST['rep_province'] ?? '');
+$rep_region = trim($_POST['rep_region'] ?? '');
+$rep_phone = trim($_POST['rep_phone'] ?? '');
+$rep_birthdate = $_POST['rep_birthdate'] ?? '';
+$rep_age = intval($_POST['rep_age'] ?? 0);
+$rep_gender = trim($_POST['rep_gender'] ?? '');
+$rep_civil_status = trim($_POST['rep_civil_status'] ?? '');
+$rep_occupation = trim($_POST['rep_occupation'] ?? '');
+$rep_monthly_salary = floatval($_POST['rep_monthly_salary'] ?? 0);
+$rep_valid_id = trim($_POST['rep_valid_id'] ?? '');
+$rep_valid_id_number = trim($_POST['rep_valid_id_number'] ?? '');
+$rep_relationship = trim($_POST['rep_relationship'] ?? '');
+
+// Validation
+$errors = [];
+if (empty($last_name)) $errors[] = 'Last name is required.';
+if (empty($first_name)) $errors[] = 'First name is required.';
+if (empty($barangay)) $errors[] = 'Barangay is required.';
+if (empty($city_municipality)) $errors[] = 'City/Municipality is required.';
+if (empty($province)) $errors[] = 'Province is required.';
+if (empty($phone)) $errors[] = 'Phone number is required.';
+if (empty($birthdate)) $errors[] = 'Birthdate is required.';
+if (empty($gender)) $errors[] = 'Gender is required.';
+if (empty($description_of_need)) $errors[] = 'Description of need is required.';
+
+if (!empty($errors)) {
+    header('Location: aics_apply.php?error=' . urlencode(implode(' ', $errors)));
+    exit;
+}
+
+// Insert into database - including all required columns
+$status = 'pending';
+$beneficiary_category = '';
+$assistance_subtype = '';
+$cash_amount = 0;
+$material_assistance = json_encode([]);
+$psychosocial_support = '';
+$referral = '';
+$referring_party = '';
+
+// Escape values for direct insertion
+$user_id = intval($user_id);
+$last_name = $conn->real_escape_string($last_name);
+$first_name = $conn->real_escape_string($first_name);
+$middle_name = $conn->real_escape_string($middle_name);
+$name_extension = $conn->real_escape_string($name_extension);
+$house_no = $conn->real_escape_string($house_no);
+$barangay = $conn->real_escape_string($barangay);
+$city_municipality = $conn->real_escape_string($city_municipality);
+$province = $conn->real_escape_string($province);
+$region = $conn->real_escape_string($region);
+$phone = $conn->real_escape_string($phone);
+$birthdate = $conn->real_escape_string($birthdate);
+$age = intval($age);
+$gender = $conn->real_escape_string($gender);
+$civil_status = $conn->real_escape_string($civil_status);
+$occupation = $conn->real_escape_string($occupation);
+$monthly_salary = floatval($monthly_salary);
+$target_sector = $conn->real_escape_string($target_sector);
+$beneficiary_subcategory = '';
+$assistance_type = $conn->real_escape_string($assistance_type);
+$family_composition = $conn->real_escape_string($family_composition);
+$financial_assistance_type = $conn->real_escape_string($financial_assistance_type);
+$description_of_need = $conn->real_escape_string($description_of_need);
+
+// Escape values for direct insertion - Representative
+$rep_last_name = $conn->real_escape_string($rep_last_name);
+$rep_first_name = $conn->real_escape_string($rep_first_name);
+$rep_middle_name = $conn->real_escape_string($rep_middle_name);
+$rep_extension = $conn->real_escape_string($rep_extension);
+$rep_house_no = $conn->real_escape_string($rep_house_no);
+$rep_barangay = $conn->real_escape_string($rep_barangay);
+$rep_city = $conn->real_escape_string($rep_city);
+$rep_province = $conn->real_escape_string($rep_province);
+$rep_region = $conn->real_escape_string($rep_region);
+$rep_phone = $conn->real_escape_string($rep_phone);
+$rep_birthdate = $conn->real_escape_string($rep_birthdate);
+$rep_age = intval($rep_age);
+$rep_gender = $conn->real_escape_string($rep_gender);
+$rep_civil_status = $conn->real_escape_string($rep_civil_status);
+$rep_occupation = $conn->real_escape_string($rep_occupation);
+$rep_monthly_salary = floatval($rep_monthly_salary);
+$rep_valid_id = $conn->real_escape_string($rep_valid_id);
+$rep_valid_id_number = $conn->real_escape_string($rep_valid_id_number);
+$rep_relationship = $conn->real_escape_string($rep_relationship);
+
+$sql = "INSERT INTO aics_applications 
+    (user_id, last_name, first_name, middle_name, name_extension, house_no, barangay, city_municipality, province, region, phone, birthdate, age, gender, civil_status, occupation, monthly_salary, target_sector, beneficiary_category, beneficiary_subcategory, assistance_type, assistance_subtype, family_composition, financial_assistance_type, cash_amount, material_assistance, psychosocial_support, referral, referring_party, description_of_need, status, rep_last_name, rep_first_name, rep_middle_name, rep_extension, rep_house_no, rep_barangay, rep_city, rep_province, rep_region, rep_phone, rep_birthdate, rep_age, rep_gender, rep_civil_status, rep_occupation, rep_monthly_salary, rep_valid_id, rep_valid_id_number, rep_relationship) 
+    VALUES ($user_id, '$last_name', '$first_name', '$middle_name', '$name_extension', '$house_no', '$barangay', '$city_municipality', '$province', '$region', '$phone', '$birthdate', $age, '$gender', '$civil_status', '$occupation', $monthly_salary, '$target_sector', '$beneficiary_category', '$beneficiary_subcategory', '$assistance_type', '$assistance_subtype', '$family_composition', '$financial_assistance_type', $cash_amount, '$material_assistance', '$psychosocial_support', '$referral', '$referring_party', '$description_of_need', '$status', '$rep_last_name', '$rep_first_name', '$rep_middle_name', '$rep_extension', '$rep_house_no', '$rep_barangay', '$rep_city', '$rep_province', '$rep_region', '$rep_phone', '$rep_birthdate', $rep_age, '$rep_gender', '$rep_civil_status', '$rep_occupation', $rep_monthly_salary, '$rep_valid_id', '$rep_valid_id_number', '$rep_relationship')";
+
+if ($conn->query($sql)) {
+    $application_id = $conn->insert_id;
+    
+    // Create notification for admins when new application is submitted
+    $notifTitle = "New AICS Application Submitted";
+    $notifMessage = "A new AICS application (#$application_id) has been submitted by $first_name $last_name. Please review.";
+    $notifType = "application";
+    
+    // Get all admin users
+    $adminStmt = $conn->prepare("SELECT id FROM users WHERE is_admin = 1");
+    $adminStmt->execute();
+    $adminResult = $adminStmt->get_result();
+    
+    while ($admin = $adminResult->fetch_assoc()) {
+        $notifInsert = $conn->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)");
+        $notifInsert->bind_param("isss", $admin['id'], $notifTitle, $notifMessage, $notifType);
+        $notifInsert->execute();
+        $notifInsert->close();
+    }
+    $adminStmt->close();
+    
+    header('Location: aics.php?success=' . urlencode('Your application has been submitted successfully! Application ID: #' . $application_id));
+    exit;
+} else {
+    $error_msg = $conn->error;
+    header('Location: aics_apply.php?error=' . urlencode('Failed to submit application: ' . $error_msg));
+    exit;
+}
+
+
+
+/* notify user */
+createNotification(
+    $conn,
+    $_SESSION['user_id'],
+    "Application Submitted",
+    "Your AICS assistance request has been submitted successfully.",
+    "application"
+);
+?>

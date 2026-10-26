@@ -1,0 +1,362 @@
+<?php
+session_start();
+require_once __DIR__ . '/db.php';
+
+// Check if user is logged in
+if (!isset($_SESSION['user_id'])) {
+    header('Location: login.php?error=' . urlencode('Please login to view your application.'));
+    exit;
+}
+
+$application_id = intval($_GET['id'] ?? 0);
+
+if (!$application_id) {
+    header('Location: aics.php?error=' . urlencode('Invalid application ID.'));
+    exit;
+}
+
+// Get application details
+$stmt = $conn->prepare("SELECT * FROM aics_applications WHERE id = ? AND user_id = ?");
+$stmt->bind_param("ii", $application_id, $_SESSION['user_id']);
+$stmt->execute();
+$result = $stmt->get_result();
+$application = $result->fetch_assoc();
+$stmt->close();
+
+if (!$application) {
+    header('Location: aics.php?error=' . urlencode('Application not found.'));
+    exit;
+}
+
+// Decode JSON fields
+$family_composition = json_decode($application['family_composition'] ?? '[]', true);
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Application Details - CALINGA MSWD</title>
+    <link rel="stylesheet" href="../style1.css">
+    <style>
+        .aics-page {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 8rem 2rem 4rem;
+        }
+        
+        .form-container {
+            background: #fff;
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+            position: relative;
+        }
+        
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            font-size: 8rem;
+            color: rgba(200, 200, 200, 0.15);
+            font-weight: bold;
+            text-transform: uppercase;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 1;
+        }
+        
+        .content-wrapper {
+            position: relative;
+            z-index: 2;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            font-size: 1.5rem;
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 2rem;
+            font-size: 0.9rem;
+        }
+        
+        .form-section {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .form-section:last-child {
+            border-bottom: none;
+        }
+        
+        .form-section h3 {
+            color: #2c3e50;
+            font-size: 1rem;
+            margin-bottom: 0.8rem;
+            border-left: 3px solid #3498db;
+            padding-left: 8px;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.8rem;
+        }
+        
+        @media (max-width: 600px) {
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .info-item {
+            font-size: 0.9rem;
+        }
+        
+        .info-item label {
+            font-weight: 600;
+            color: #555;
+            display: block;
+            font-size: 0.8rem;
+        }
+        
+        .info-item span {
+            color: #333;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        
+        .status-pending { background: #fff3cd; color: #856404; }
+        .status-approved { background: #d4edda; color: #155724; }
+        .status-declined { background: #f8d7da; color: #721c24; }
+        
+        .family-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+        }
+        
+        .family-table th, .family-table td {
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        
+        .family-table th {
+            background: #f8f9fa;
+        }
+        
+        .btn-back {
+            display: inline-block;
+            margin-bottom: 1rem;
+            color: #3498db;
+            text-decoration: none;
+        }
+        
+        .checkbox-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        
+        .checkbox-item {
+            background: #f8f9fa;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="menu scrolled">
+    <div class="menu__logo">
+        <img src="../imgs/c4.png" alt="Logo">
+        <span>CALINGA</span>
+    </div>
+
+    <ul class="menu__links">
+        <li><a href="../index.php">Home</a></li>
+        <li class="dropdown">
+            <a href="#">Services</a>
+            <div class="dropdown__menu">
+                <a href="aics.php">AICS</a>
+            </div>
+        </li>
+    </ul>
+    <div class="menu__auth">
+        <a href="logout.php" class="btn btn-outline">Logout</a>
+    </div>
+</nav>
+
+<div class="aics-page">
+    <a href="aics.php" class="btn-back">← Back to AICS</a>
+    
+    <div class="form-container">
+        <div class="watermark">GOVERNMENT PROPERTY</div>
+        
+        <div class="content-wrapper">
+            <h1>DSWD General Intake Sheet (GIS)</h1>
+            <p class="subtitle">Application ID: #<?= $application['id'] ?> | Status: <span class="status-badge status-<?= $application['status'] ?>"><?= ucfirst($application['status']) ?></span></p>
+            
+            <div class="form-section">
+                <h3>IMPORMASYON NG BENEPISYARYO</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <label>Name</label>
+                        <span><?= htmlspecialchars(($application['first_name'] ?? '') . ' ' . ($application['middle_name'] ?? '') . ' ' . ($application['last_name'] ?? '') . ' ' . ($application['name_extension'] ?? '')) ?></span>
+                    </div>
+                    <div class="info-item">
+                        <label>Address</label>
+                        <span><?= htmlspecialchars(($application['house_no'] ?? '') . ', ' . ($application['barangay'] ?? '') . ', ' . ($application['city_municipality'] ?? '') . ', ' . ($application['province'] ?? '')) ?></span>
+                    </div>
+                    <div class="info-item">
+                        <label>Phone Number</label>
+                        <span><?= htmlspecialchars($application['phone'] ?? '') ?></span>
+                    </div>
+                    <div class="info-item">
+                        <label>Birthdate / Age</label>
+                        <span><?= !empty($application['birthdate']) ? date('M d, Y', strtotime($application['birthdate'])) : 'N/A' ?> / <?= $application['age'] ?? 0 ?> years old</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Gender</label>
+                        <span><?= htmlspecialchars($application['gender'] ?? '') ?></span>
+                    </div>
+                    <div class="info-item">
+                        <label>Occupation</label>
+                        <span><?= htmlspecialchars($application['occupation'] ?? '') ?></span>
+                    </div>
+                    <div class="info-item">
+                        <label>Monthly Salary</label>
+                        <span>PHP <?= number_format($application['monthly_salary'] ?? 0, 2) ?></span>
+                    </div>
+            </div>
+            
+            <div class="form-section">
+                <h3>TARGET SECTOR</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <label>Target Sector</label>
+                        <span><?= htmlspecialchars($application['target_sector'] ?? 'None') ?></span>
+                    </div>
+            </div>
+            
+            <?php if (!empty($family_composition)): ?>
+            <div class="form-section">
+                <h3>KOMPOSISYON NG PAMILYA</h3>
+                <table class="family-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Relationship</th>
+                            <th>Age</th>
+                            <th>Occupation</th>
+                            <th>Monthly Income</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($family_composition as $member): ?>
+                        <tr>
+                            <td><?= htmlspecialchars($member['name'] ?? '') ?></td>
+                            <td><?= htmlspecialchars($member['relationship'] ?? '') ?></td>
+                            <td><?= $member['age'] ?? 0 ?></td>
+                            <td><?= htmlspecialchars($member['occupation'] ?? '') ?></td>
+                            <td>PHP <?= number_format($member['income'] ?? 0, 2) ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php endif; ?>
+            
+            <div class="form-section">
+                <h3>TYPE OF ASSISTANCE</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <label>Financial Assistance Type</label>
+                        <span><?= htmlspecialchars($application['financial_assistance_type'] ?? 'None') ?></span>
+                    </div>
+            </div>
+            
+            <div class="form-section">
+                <h3>DESCRIPTION OF NEED</h3>
+                <p><?= nl2br(htmlspecialchars($application['description_of_need'] ?? '')) ?></p>
+            </div>
+            
+            <?php
+            // Check if there's a representative
+            $hasRep = !empty($application['rep_first_name']) || !empty($application['rep_last_name']);
+            if ($hasRep): 
+            ?>
+            <div class="form-section">
+                <h3>REPRESENTATIVE INFORMATION</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <label>Name</label>
+                        <span><?= htmlspecialchars(($application['rep_first_name'] ?? '') . ' ' . ($application['rep_middle_name'] ?? '') . ' ' . ($application['rep_last_name'] ?? '') . ' ' . ($application['rep_extension'] ?? '')) ?></span>
+                    </div>
+                    <div class="info-item">
+                        <label>Address</label>
+                        <span><?= htmlspecialchars(($application['rep_house_no'] ?? '') . ', ' . ($application['rep_barangay'] ?? '') . ', ' . ($application['rep_city'] ?? '') . ', ' . ($application['rep_province'] ?? '')) ?></span>
+                    </div>
+                    <div class="info-item">
+                        <label>Phone Number</label>
+                        <span><?= htmlspecialchars($application['rep_phone'] ?? '') ?></span>
+                    </div>
+                    <div class="info-item">
+                        <label>Birthdate / Age</label>
+                        <span><?= !empty($application['rep_birthdate']) ? date('M d, Y', strtotime($application['rep_birthdate'])) : 'N/A' ?> / <?= $application['rep_age'] ?? 0 ?> years old</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Gender</label>
+                        <span><?= htmlspecialchars($application['rep_gender'] ?? '') ?></span>
+                    </div>
+                    <div class="info-item">
+                        <label>Civil Status</label>
+                        <span><?= htmlspecialchars($application['rep_civil_status'] ?? '') ?></span>
+                    </div>
+                    <div class="info-item">
+                        <label>Occupation</label>
+                        <span><?= htmlspecialchars($application['rep_occupation'] ?? '') ?></span>
+                    </div>
+                    <div class="info-item">
+                        <label>Monthly Salary</label>
+                        <span>PHP <?= number_format($application['rep_monthly_salary'] ?? 0, 2) ?></span>
+                    </div>
+                    <div class="info-item">
+                        <label>Relationship to Beneficiary</label>
+                        <span><?= htmlspecialchars($application['rep_relationship'] ?? '') ?></span>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+            
+            <?php if (!empty($application['admin_notes'])): ?>
+            <div class="form-section">
+                <h3>ADMIN NOTES</h3>
+                <p><?= nl2br(htmlspecialchars($application['admin_notes'])) ?></p>
+            </div>
+            <?php endif; ?>
+        </div>
+</div>
+
+<footer class="footer">
+    <p>© 2026 CALINGA - MSWD | Cainta, Rizal, Philippines</p>
+</footer>
+
+</body>
+</html>

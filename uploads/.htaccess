@@ -1,0 +1,4 @@
+# Block all direct access to uploaded files
+<FilesMatch ".*">
+    Require all granted
+</FilesMatch>

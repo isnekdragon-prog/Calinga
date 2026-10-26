@@ -1,0 +1,4 @@
+# Block all direct access to verification documents
+<FilesMatch ".*">
+    Require all denied
+</FilesMatch>
